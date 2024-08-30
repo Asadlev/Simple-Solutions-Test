@@ -1,0 +1,54 @@
+<!-- templates/payment_form.html -->
+<form id="payment-form">
+  <div id="card-element">
+    <!-- Stripe Elements будет внедрен сюда -->
+  </div>
+  <button id="submit">Оплатить</button>
+</form>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+  var stripe = Stripe('{{ stripe_key }}');
+  var elements = stripe.elements();
+  var card = elements.create('card');
+  card.mount('#card-element');
+
+  var form = document.getElementById('payment-form');
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    stripe.createPaymentMethod({
+      type: 'card',
+      card: card,
+    }).then(function(result) {
+      if (result.error) {
+        console.error(result.error.message);
+      } else {
+        fetch("{% url 'api_app:create_payment' %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({
+            payment_method_id: result.paymentMethod.id,
+            amount: 1000,  // Сумма платежа в центах
+            description: 'Тестовый платеж'
+          }),
+        }).then(function(result) {
+          return result.json();
+        }).then(function(paymentIntent) {
+          stripe.confirmCardPayment(paymentIntent.client_secret).then(function(result) {
+            if (result.error) {
+              console.error(result.error.message);
+            } else {
+              if (result.paymentIntent.status === 'succeeded') {
+                alert('Платеж успешно завершен!');
+              }
+            }
+          });
+        });
+      }
+    });
+  });
+</script>
